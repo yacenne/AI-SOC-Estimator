@@ -1,0 +1,14 @@
+numpy
+pandas
+scipy
+torch
+torchvision
+einops
+scikit-learn
+matplotlib
+seaborn
+tqdm
+pyyaml
+jupyter
+notebook
+ipywidgets

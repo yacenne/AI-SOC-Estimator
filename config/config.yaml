@@ -1,0 +1,102 @@
+# CSFAT Configuration File
+# Cross-Sensor Fault-Aware Transformer for Robust SOC Estimation
+
+project:
+  name: "CSFAT"
+  version: "1.0.0"
+  seed: 42
+
+paths:
+  data_root: "./data/raw"
+  processed_root: "./data/processed"
+  checkpoints: "./checkpoints"
+  logs: "./logs"
+  figures: "./figures"
+
+dataset:
+  panasonic:
+    root: "./data/raw/Panasonic 18650PF Data"
+    target_hz: 1.0
+    train_temps: [25, 10]
+    val_temps: [0]
+    test_temps: [-10]
+    capacity_ah: 2.9
+  nasa:
+    root: "./data/raw/nasa"
+    cell_ids: ["B0005", "B0006", "B0007", "B0018"]
+    target_hz: 1.0
+  oxford:
+    root: "./data/raw/oxford"
+    n_cells: 8
+    target_hz: 1.0
+
+window:
+  size: 128
+  stride: 32
+  patch_size: 16
+
+model:
+  d_model: 64
+  n_heads: 4
+  n_layers: 3
+  d_ff: 128
+  dropout: 0.1
+  n_sensors: 3
+  n_fault_classes: 7
+
+pretrain:
+  epochs: 50
+  batch_size: 64
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  lr_scheduler: "cosine"
+  patch_mask_ratio: 0.75
+  sensor_mask_prob: 0.4
+
+finetune:
+  epochs: 50
+  batch_size: 64
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  lr_scheduler: "cosine"
+  lambda_fault: 0.2
+  lambda_attn: 0.01
+  curriculum:
+    warmup_epochs: 15
+    ramp_epochs: 30
+    max_fault_rate: 0.6
+    dual_sensor_rate: 0.15
+
+faults:
+  types: ["dropout", "stuck", "drift", "spike", "bias", "gain"]
+  severities: ["low", "medium", "high"]
+  severity_params:
+    dropout:
+      low: {duration_frac: 0.05}
+      medium: {duration_frac: 0.20}
+      high: {duration_frac: 0.50}
+    stuck:
+      low: {duration_frac: 0.10}
+      medium: {duration_frac: 0.30}
+      high: {duration_frac: 0.70}
+    drift:
+      low: {rate_frac: 0.01}
+      medium: {rate_frac: 0.05}
+      high: {rate_frac: 0.15}
+    spike:
+      low: {n_spikes: 1, amplitude_sigma: 2.0}
+      medium: {n_spikes: 3, amplitude_sigma: 5.0}
+      high: {n_spikes: 5, amplitude_sigma: 10.0}
+    bias:
+      low: {bias_frac: 0.02}
+      medium: {bias_frac: 0.05}
+      high: {bias_frac: 0.15}
+    gain:
+      low: {gain_delta: 0.02}
+      medium: {gain_delta: 0.10}
+      high: {gain_delta: 0.25}
+
+evaluation:
+  metrics: ["rmse", "mae", "max_error", "degradation_ratio"]
+  fault_metrics: ["precision", "recall", "f1"]
+  n_runs: 3
