@@ -28,6 +28,48 @@ from .sensor_embedding import SensorPatchEmbedding, SensorTokenizer
 from .cross_sensor_transformer import CrossSensorTransformerEncoder
 
 
+class RevIN(nn.Module):
+    """
+    Reversible Instance Normalization (Kim et al., ICLR 2022).
+
+    Normalizes each input window by its own per-sensor mean and std,
+    removing distribution shift caused by temperature variation.
+    Used by WASFormer (state-of-the-art SOC estimator) for the same reason.
+
+    For SOC estimation we only apply the forward (normalization) step —
+    no denormalization is needed since SOC is a separate target variable.
+
+    Args:
+        n_sensors: Number of sensor channels.
+        eps: Small constant for numerical stability.
+        affine: If True, learn per-sensor scale and bias after normalization.
+    """
+
+    def __init__(self, n_sensors: int, eps: float = 1e-8, affine: bool = True):
+        super().__init__()
+        self.n_sensors = n_sensors
+        self.eps = eps
+        self.affine = affine
+        if affine:
+            self.gamma = nn.Parameter(torch.ones(n_sensors))   # per-sensor scale
+            self.beta  = nn.Parameter(torch.zeros(n_sensors))  # per-sensor shift
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x: (B, T, N_sensors) — raw sensor window
+        Returns:
+            x_norm: (B, T, N_sensors) — instance-normalized window
+        """
+        # Compute per-sensor mean and std over the time axis
+        mean = x.mean(dim=1, keepdim=True)                        # (B, 1, N)
+        std  = x.std(dim=1, keepdim=True).clamp(min=self.eps)     # (B, 1, N)
+        x_norm = (x - mean) / std                                  # (B, T, N)
+        if self.affine:
+            x_norm = x_norm * self.gamma + self.beta
+        return x_norm
+
+
 class CSFATEncoder(nn.Module):
     """Shared encoder used in both pretraining and fine-tuning."""
 
@@ -36,7 +78,6 @@ class CSFATEncoder(nn.Module):
         self.n_sensors = n_sensors
         self.d_model = d_model
         self.patch_embed = SensorPatchEmbedding(window_size, patch_size, d_model, n_sensors, dropout)
-        self.tokenizer = SensorTokenizer(window_size // patch_size, d_model, n_sensors)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, d_model))
         nn.init.trunc_normal_(self.cls_token, std=0.02)
         self.transformer = CrossSensorTransformerEncoder(d_model, n_heads, n_layers, d_ff, dropout)
@@ -51,16 +92,29 @@ class CSFATEncoder(nn.Module):
         """
         B = x.shape[0]
         patch_emb = self.patch_embed(x)           # (B, N, n_patches, d_model)
-        sensor_tokens = self.tokenizer(patch_emb)  # (B, N, d_model)
+        
+        B, N, P, D = patch_emb.shape
+        sensor_tokens = patch_emb.view(B, N * P, D) # (B, N * P, d_model)
+        
         cls = self.cls_token.expand(B, -1, -1)    # (B, 1, d_model)
-        tokens = torch.cat([cls, sensor_tokens], dim=1)  # (B, N+1, d_model)
+        tokens = torch.cat([cls, sensor_tokens], dim=1)  # (B, N*P+1, d_model)
+        
         if sensor_mask is not None:
+            expanded_mask = sensor_mask.unsqueeze(2).expand(-1, -1, P) # (B, N, P)
+            expanded_mask = expanded_mask.reshape(B, N * P) # (B, N * P)
             cls_mask = torch.zeros(B, 1, dtype=torch.bool, device=x.device)
-            key_padding_mask = torch.cat([cls_mask, sensor_mask], dim=1)  # (B, N+1)
+            key_padding_mask = torch.cat([cls_mask, expanded_mask], dim=1)  # (B, N*P+1)
         else:
             key_padding_mask = None
+            
         encoded, attn_weights = self.transformer(tokens, key_padding_mask)
-        return encoded[:, 0, :], encoded[:, 1:, :], attn_weights
+        
+        cls_out = encoded[:, 0, :] # (B, d_model)
+        sensor_out_raw = encoded[:, 1:, :] # (B, N*P, d_model)
+        sensor_out = sensor_out_raw.view(B, N, P, D).mean(dim=2) # (B, N, d_model)
+        
+        return cls_out, sensor_out, attn_weights
+
 
 
 class CSFAT(nn.Module):

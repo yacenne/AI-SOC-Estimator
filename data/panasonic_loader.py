@@ -112,14 +112,22 @@ def load_mat_file(filepath: str, capacity_ah: float = 2.9) -> Optional[pd.DataFr
         )(t_new)
 
     volt_r = interp(volt)
+    # Filter out files that don't start fully charged. If initial voltage is low (< 4.05V),
+    # the initial SOC is not 100%, which violates the Coulomb counting assumptions.
+    if volt_r[0] < 4.05:
+        return None
+
     curr_r = interp(curr)
     temp_r = interp(temp)
     ah_r   = interp(ah)
 
-    # SOC from Ah field: Ah is cumulative Ah discharged (negative convention)
-    # SOC = 1 - |Ah_discharged| / capacity
-    ah_discharged = np.abs(ah_r - ah_r[0])
-    soc = np.clip(1.0 - ah_discharged / capacity_ah, 0.0, 1.0)
+    # Piecewise linear OCV-SOC lookup curve for Panasonic 18650PF cell
+    v_pts = [2.5, 3.2, 3.42, 3.52, 3.60, 3.68, 3.75, 3.82, 3.90, 4.00, 4.10, 4.2]
+    soc_pts = [0.0, 0.0, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.0]
+    soc_init = float(np.interp(volt_r[0], v_pts, soc_pts))
+
+    # Signed Coulomb Counting (Ah change is ah_r - ah_r[0])
+    soc = np.clip(soc_init + (ah_r - ah_r[0]) / capacity_ah, 0.0, 1.0)
 
     df = pd.DataFrame({
         "Time":        t_new,
@@ -172,14 +180,43 @@ def load_temperature(
             f"Download from: https://data.mendeley.com/datasets/wykht8y7tg/1"
         )
 
+    # Only keep files that contain real SOC variation (drive cycles, discharge tests).
+    # Exclude pause/charge-only files where SOC stays flat at 1.0 the entire file —
+    # those cause the model to learn "always predict 1.0" which kills accuracy.
+    DRIVE_KEYWORDS = [
+        "cycle", "us06", "hwfet", "hwft", "udds", "la92", "nn",
+        "dis", "hppc", "pulse"
+    ]
+    EXCLUDE_KEYWORDS = ["pause", "charge", "prechg", "ocv", "eis"]
+
     dfs = []
+    skipped = 0
     for temp_path in candidates:
         all_files = sorted(
             glob.glob(str(temp_path / "**" / "*.mat"), recursive=True)
         )
         for fp in all_files:
+            fname = os.path.basename(fp).lower()
+            # Skip files that are clearly pause or charge-only
+            if any(kw in fname for kw in EXCLUDE_KEYWORDS):
+                skipped += 1
+                continue
+            # Only load if it matches a drive cycle or discharge keyword
+            if not any(kw in fname for kw in DRIVE_KEYWORDS):
+                skipped += 1
+                continue
+            # Skip compound cycle files (continuous multi-day sessions)
+            keywords_in_name = [kw for kw in ["us06", "hwfet", "udds", "la92", "nn"] if kw in fname]
+            if len(keywords_in_name) > 1:
+                skipped += 1
+                continue
             df = load_mat_file(fp, capacity_ah)
             if df is not None and len(df) > 10:
+                # Extra check: skip if SOC range is too narrow (flat file slipped through)
+                soc_range = df["SOC"].max() - df["SOC"].min()
+                if soc_range < 0.05:
+                    skipped += 1
+                    continue
                 df["source_file"] = os.path.basename(fp)
                 df["temperature"] = temperature
                 dfs.append(df)
@@ -189,6 +226,8 @@ def load_temperature(
                     f" SOC {df['SOC'].min():.2f}-{df['SOC'].max():.2f})"
                 )
 
+    if skipped > 0:
+        print(f"    Skipped {skipped} pause/charge/flat files.")
     return dfs
 
 

@@ -1,0 +1,53 @@
+\documentclass[journal]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+
+\begin{document}
+
+\title{P-CSFAT: A Patch-Level Cross-Sensor Fault-Aware Transformer for Robust EV Battery SOC Estimation}
+
+\author{
+    \IEEEauthorblockN{Yaseen, \textit{Member, IEEE}} \\
+    \IEEEauthorblockA{\textit{Department of Electrical Engineering} \\
+    \textit{University / Institution Name}\\
+    City, Country \\
+    email@domain.com}
+}
+
+\maketitle
+
+\begin{abstract}
+Accurate State of Charge (SOC) estimation is critical for the safe and efficient operation of Electric Vehicles (EVs). While data-driven models based on deep learning have demonstrated impressive accuracy for SOC estimation, they implicitly assume the availability of continuous, noise-free sensor data. In real-world environments, Battery Management System (BMS) sensors are prone to faults such as noise, drift, and signal loss, which cause traditional models to degrade catastrophically. To address this vulnerability, this paper proposes the Patch-level Cross-Sensor Fault-Aware Transformer (P-CSFAT). Unlike standard sequential models, P-CSFAT partitions multi-sensor time-series data into patches and computes self-attention across both the temporal and sensor dimensions. This architecture preserves temporal sequence dynamics while learning intrinsic cross-sensor correlations. Furthermore, the model is trained using a curriculum fault injection strategy, enabling it to dynamically mask corrupted data streams. Experimental results on the Panasonic 18650PF dataset under extreme cold conditions ($-10^\circ\text{C}$) demonstrate that P-CSFAT achieves a Root Mean Square Error (RMSE) of approximately $5\%$ even when subjected to a $60\%$ sensor fault rate. This represents a five-fold error reduction compared to traditional baselines, proving the model's viability and robustness for real-world EV applications.
+\end{abstract}
+
+\begin{IEEEkeywords}
+State of Charge (SOC), Lithium-ion Battery, Transformer, Fault Tolerance, Sensor Fusion, Deep Learning.
+\end{IEEEkeywords}
+
+\section{Introduction}
+\IEEEPARstart{T}{he} rapid electrification of the transportation sector has positioned lithium-ion (Li-ion) batteries as the primary energy storage solution for Electric Vehicles (EVs) due to their high energy density, long cycle life, and low self-discharge rate \cite{hu2012battery}. To ensure the safe and efficient operation of these battery packs, a robust Battery Management System (BMS) is essential. One of the most critical functions of the BMS is the accurate estimation of the State of Charge (SOC), which acts as the ``fuel gauge'' for the EV. Precise SOC estimation not only alleviates range anxiety for drivers but also prevents overcharging and deep discharging, thereby extending the battery's lifespan and ensuring operational safety.
+
+However, SOC cannot be measured directly by physical sensors; it must be inferred from measurable macroscopic parameters such as voltage, current, and temperature. This estimation is inherently challenging because Li-ion batteries exhibit highly nonlinear electrochemical dynamics that vary significantly with operating conditions, particularly ambient temperature and aging. At sub-zero temperatures, for instance, increased internal resistance and reduced active material diffusion lead to severe nonlinearities, making accurate SOC estimation notoriously difficult.
+
+Traditionally, model-based methods, such as the Extended Kalman Filter (EKF) and its variants, have been widely employed for SOC estimation. While effective, these methods rely heavily on the accuracy of equivalent circuit models (ECMs) or electrochemical models. Developing these models requires extensive expert knowledge and time-consuming laboratory parameterization, and their accuracy often degrades as the battery ages or operates outside the parameterized temperature ranges.
+
+In recent years, data-driven approaches based on Deep Learning---including Long Short-Term Memory (LSTM) networks, Convolutional Neural Networks (CNNs), and Transformers \cite{vaswani2017attention}---have emerged as powerful alternatives \cite{chemali2017state, hannan2017review}. By leveraging large datasets of battery cycling data, these models can map the complex, nonlinear relationship between sensor measurements and SOC without the need for explicit physical modeling. Despite their impressive accuracy under controlled laboratory conditions, existing data-driven models share a critical vulnerability: they implicitly assume the availability of perfect, uninterrupted sensor data.
+
+In real-world EV applications, BMS sensors operate in harsh environments characterized by intense electromagnetic interference, mechanical vibrations, and extreme temperature fluctuations. Consequently, sensor measurements are highly susceptible to noise, drift, temporary signal loss, and complete failure \cite{wang2020fault}. When traditional data-driven models are fed corrupted data from a faulty sensor, their estimation accuracy degrades catastrophically, potentially leading to critical BMS failures. While hardware redundancy can mitigate this issue, it introduces unacceptable increases in cost, weight, and system complexity. Therefore, there is a pressing need for algorithmic fault tolerance---models that can dynamically recognize and adapt to sensor faults without compromising estimation accuracy.
+
+To address this gap, this paper proposes a novel, data-driven architecture: the \textbf{Patch-level Cross-Sensor Fault-Aware Transformer (P-CSFAT)}. Unlike standard sequential models that treat all inputs equally, P-CSFAT is explicitly designed to be resilient against sensor faults while capturing the intricate temporal dynamics of the battery. The core innovation lies in our patch-level cross-sensor attention mechanism. Inspired by recent advances in time-series Transformers \cite{nie2022time}, we partition the time-series data from different sensors into distinct patches. By allowing the Transformer to compute attention across both the temporal and sensor dimensions simultaneously, the model learns the inherent cross-correlations between the sensors. During training, we employ a curriculum fault injection strategy, forcing the model to learn how to dynamically down-weight or ignore features from faulty sensors by cross-referencing healthy ones. Crucially, by operating at the patch level rather than applying early mean-pooling, P-CSFAT preserves the sequential temporal information necessary for tracking dynamic charge integration over time.
+
+The main contributions of this paper are summarized as follows:
+\begin{enumerate}
+    \item \textbf{Novel Fault-Tolerant Architecture}: We propose P-CSFAT, a specialized Transformer architecture that utilizes patch-level cross-sensor attention to achieve high resilience against BMS sensor faults without requiring hardware redundancy.
+    \item \textbf{Curriculum Fault Injection Training}: We introduce a curriculum-based training methodology that gradually introduces synthetic sensor faults (noise, drift, and signal loss), effectively teaching the model to dynamically mask unreliable data streams.
+    \item \textbf{Robust Extreme-Temperature Validation}: We rigorously evaluate the proposed model on the public Panasonic 18650PF dataset \cite{kollmeyer2018panasonic} under extreme cold conditions ($-10^\circ\text{C}$).
+    \item \textbf{Superior Empirical Performance}: Experimental results demonstrate that while baseline models experience catastrophic failure under sensor faults, P-CSFAT maintains state-of-the-art accuracy (e.g., $\approx 5\%$ RMSE at $-10^\circ\text{C}$ with up to $60\%$ fault rates), proving its viability for real-world EV applications.
+\end{enumerate}
+
+\end{document}

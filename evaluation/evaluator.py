@@ -18,7 +18,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from .metrics import SOCMetrics, FaultMetrics, compute_degradation_ratio, summarize_robustness_results
-from faults.fault_types import FaultType, FAULT_NAMES, SENSOR_NAMES if hasattr(__import__('faults.fault_types', fromlist=['fault_types']), 'SENSOR_NAMES') else None
+from faults.fault_types import FaultType, FAULT_NAMES
+try:
+    from faults.fault_types import SENSOR_NAMES
+except ImportError:
+    SENSOR_NAMES = ["Voltage", "Current", "Temperature"]
 
 
 SENSOR_NAMES_DEFAULT = ["Voltage", "Current", "Temperature"]

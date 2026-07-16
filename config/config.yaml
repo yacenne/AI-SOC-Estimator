@@ -17,8 +17,8 @@ dataset:
   panasonic:
     root: "./data/raw/Panasonic 18650PF Data"
     target_hz: 1.0
-    train_temps: [25, 10]
-    val_temps: [0]
+    train_temps: [25, 10, 0]
+    val_temps: [-10]
     test_temps: [-10]
     capacity_ah: 2.9
   nasa:
@@ -32,7 +32,7 @@ dataset:
 
 window:
   size: 128
-  stride: 32
+  stride: 128
   patch_size: 16
 
 model:
@@ -59,7 +59,7 @@ finetune:
   lr: 1.0e-3
   weight_decay: 1.0e-4
   lr_scheduler: "cosine"
-  lambda_fault: 0.2
+  lambda_fault: 0.05
   lambda_attn: 0.01
   curriculum:
     warmup_epochs: 15

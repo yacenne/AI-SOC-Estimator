@@ -155,12 +155,12 @@ class CSFATLoss(nn.Module):
         if fault_labels is not None and "fault_logits" in outputs and self.lambda_fault > 0:
             l_fault = self.fault_loss(outputs["fault_logits"], fault_labels, fault_mask)
 
-        # Attention entropy regularization
+        # Attention entropy regularization — disabled for now.
+        # The sign of this term caused total loss to go negative in earlier runs,
+        # preventing the model from learning. Re-enable once SOC training is stable.
         l_attn = torch.tensor(0.0, device=l_soc.device)
-        if "attn_weights" in outputs and outputs["attn_weights"] and self.lambda_attn > 0:
-            l_attn = self.attention_entropy_loss(outputs["attn_weights"])
 
-        total = l_soc + self.lambda_fault * l_fault + self.lambda_attn * l_attn
+        total = l_soc + self.lambda_fault * l_fault
 
         return {
             "total": total,

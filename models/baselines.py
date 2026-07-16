@@ -32,7 +32,7 @@ class VanillaTransformer(nn.Module):
             nn.Linear(d_model // 2, 1), nn.Sigmoid(),
         )
 
-    def forward(self, x: torch.Tensor, **kwargs) -> Dict[str, torch.Tensor]:
+    def forward(self, x: torch.Tensor, sensor_mask: Optional[torch.Tensor] = None, **kwargs) -> Dict[str, torch.Tensor]:
         h = self.input_proj(x) + self.pos_embed
         h = self.norm(self.transformer(h))
         return {"soc": self.soc_head(h.mean(dim=1)), "attn_weights": []}
@@ -54,7 +54,7 @@ class LSTMBaseline(nn.Module):
             nn.Linear(out_size // 2, 1), nn.Sigmoid(),
         )
 
-    def forward(self, x: torch.Tensor, **kwargs) -> Dict[str, torch.Tensor]:
+    def forward(self, x: torch.Tensor, sensor_mask: Optional[torch.Tensor] = None, **kwargs) -> Dict[str, torch.Tensor]:
         out, _ = self.lstm(x)
         return {"soc": self.soc_head(out[:, -1, :]), "attn_weights": []}
 
